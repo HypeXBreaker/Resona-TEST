@@ -1,0 +1,151 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>RESONA</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;600;800&display=swap" rel="stylesheet">
+
+<style>
+/* 🔥 YOUR ORIGINAL DESIGN — UNTOUCHED */
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Inter',sans-serif;}
+body{
+  height:100vh;
+  background:linear-gradient(-45deg,#ff758c,#ff7eb3,#8ec5fc,#a9f1df);
+  background-size:400% 400%;
+  animation:bgMove 12s ease infinite;
+  color:white;
+}
+@keyframes bgMove{
+  0%{background-position:0% 50%}
+  50%{background-position:100% 50%}
+  100%{background-position:0% 50%}
+}
+.search-bar{padding:20px;display:flex;gap:15px;}
+.search-bar input{flex:1;padding:15px;border-radius:15px;border:none;font-size:1.1rem;}
+.search-bar button{padding:15px 25px;border:none;border-radius:15px;font-weight:700;cursor:pointer;}
+.main{display:flex;height:calc(100vh - 90px);padding:20px;gap:20px;}
+.now-playing{flex:3;background:rgba(255,255,255,0.15);border-radius:25px;padding:30px;display:flex;flex-direction:column;justify-content:space-between;}
+.song-info{display:flex;flex-direction:column;gap:25px;}
+.album-art{width:100%;height:190px;border-radius:20px;background-size:cover;background-position:center;}
+.song-title{font-size:3rem;font-weight:800;}
+.song-album{opacity:.8;}
+.controls{display:flex;gap:25px;}
+.controls button{width:70px;height:70px;border-radius:50%;border:none;font-size:1.8rem;cursor:pointer;}
+.queue{flex:2;background:rgba(0,0,0,0.25);border-radius:25px;padding:20px;overflow-y:auto;}
+.queue-item{padding:12px;border-radius:15px;margin-bottom:10px;background:rgba(255,255,255,0.15);}
+</style>
+</head>
+
+<body>
+
+<div class="search-bar">
+  <input id="songInput" placeholder="Search song...">
+  <button id="addBtn">➕ Add</button>
+</div>
+
+<div class="main">
+  <div class="now-playing">
+    <div class="song-info">
+      <div id="albumArt" class="album-art"></div>
+      <div>
+        <div id="songTitle" class="song-title">Nothing Playing</div>
+        <div class="song-album">YouTube Audio</div>
+      </div>
+    </div>
+    <div class="controls">
+      <button onclick="prev()">⏮</button>
+      <button onclick="toggle()">⏯</button>
+      <button onclick="next()">⏭</button>
+    </div>
+  </div>
+
+  <div class="queue">
+    <h2>QUEUE</h2>
+    <div id="queueList"></div>
+  </div>
+</div>
+
+<!-- 🔥 HIDDEN YOUTUBE PLAYER -->
+<div id="player" style="display:none;"></div>
+
+<script src="https://www.youtube.com/iframe_api"></script>
+<script>
+let player;
+let currentVideo = null;
+
+function onYouTubeIframeAPIReady(){
+  player = new YT.Player('player',{
+    height:'0',
+    width:'0',
+    events:{
+      'onStateChange': e=>{
+        if(e.data === YT.PlayerState.ENDED){
+          next();
+        }
+      }
+    }
+  });
+}
+
+async function fetchQueue(){
+  const res = await fetch('/queue');
+  return res.json();
+}
+
+async function updateUI(){
+  const data = await fetchQueue();
+
+  if(data.now_playing){
+    document.getElementById('songTitle').innerText = data.now_playing.title;
+    document.getElementById('albumArt').style.backgroundImage =
+      `url(${data.now_playing.thumbnail})`;
+
+    if(currentVideo !== data.now_playing.video_id){
+      currentVideo = data.now_playing.video_id;
+      player.loadVideoById(currentVideo);
+    }
+  }
+
+  const q = document.getElementById('queueList');
+  q.innerHTML='';
+  data.queue.forEach((s,i)=>{
+    const d=document.createElement('div');
+    d.className='queue-item';
+    d.innerText=`${i+1}. ${s}`;
+    q.appendChild(d);
+  });
+}
+
+async function addSong(){
+  const input=document.getElementById('songInput');
+  if(!input.value.trim()) return;
+  await fetch('/add',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({song:input.value})
+  });
+  input.value='';
+}
+
+async function next(){
+  await fetch('/next',{method:'POST'});
+}
+
+function toggle(){
+  if(player.getPlayerState() === 1) player.pauseVideo();
+  else player.playVideo();
+}
+
+function prev(){
+  player.seekTo(0);
+}
+
+document.getElementById('addBtn').onclick = addSong;
+setInterval(updateUI,1000);
+</script>
+
+</body>
+</html>
